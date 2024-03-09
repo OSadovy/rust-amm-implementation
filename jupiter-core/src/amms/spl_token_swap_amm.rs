@@ -1,4 +1,3 @@
-use anchor_lang::prelude::AccountMeta;
 use anyhow::Result;
 use spl_token::state::Account as TokenAccount;
 use std::{collections::HashMap, convert::TryInto};
@@ -48,6 +47,7 @@ lazy_static! {
     };
 }
 
+#[derive(Debug)]
 pub struct SplTokenSwapAmm {
     key: Pubkey,
     label: String,
@@ -157,7 +157,7 @@ impl Amm for SplTokenSwapAmm {
 
         let swap_result = get_swap_curve_result(
             &self.state.swap_curve,
-            quote_params.in_amount,
+            quote_params.amount,
             swap_source_amount,
             swap_destination_amount,
             trade_direction,
