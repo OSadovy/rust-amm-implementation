@@ -10,7 +10,7 @@ use spl_token_swap::{curve::calculator::TradeDirection, state::SwapV1};
 
 use jupiter_amm_interface::Swap;
 use jupiter_amm_interface::{
-    try_get_account_data, AccountMap, Amm, KeyedAccount, Quote, QuoteParams, SwapAndAccountMetas,
+    AccountMap, Amm, KeyedAccount, Quote, QuoteParams, SwapAndAccountMetas,
     SwapParams,
 };
 
@@ -133,16 +133,15 @@ impl Amm for SplTokenSwapAmm {
     }
 
     fn update(&mut self, account_map: &AccountMap) -> Result<()> {
-        let token_a_account = try_get_account_data(account_map, &self.state.token_a)?;
-        let token_a_token_account = TokenAccount::unpack(token_a_account)?;
+        if let Some(token_a_account) = account_map.get(&self.state.token_a) {
+            let token_a_token_account = TokenAccount::unpack(token_a_account.data.as_slice())?;
+            self.reserves [0] = token_a_token_account.amount.into()
+        }
 
-        let token_b_account = try_get_account_data(account_map, &self.state.token_b)?;
-        let token_b_token_account = TokenAccount::unpack(token_b_account)?;
-
-        self.reserves = [
-            token_a_token_account.amount.into(),
-            token_b_token_account.amount.into(),
-        ];
+        if let Some(token_b_account) = account_map.get(&self.state.token_b) {
+            let token_b_token_account = TokenAccount::unpack(token_b_account.data.as_slice())?;
+            self.reserves[1] = token_b_token_account.amount.into();
+        }
 
         Ok(())
     }
@@ -211,5 +210,9 @@ impl Amm for SplTokenSwapAmm {
 
     fn clone_amm(&self) -> Box<dyn Amm + Send + Sync> {
         Box::new(self.clone())
+    }
+
+    fn get_available_liquidity(&self) -> Vec<u128> {
+        self.reserves.to_vec()
     }
 }
