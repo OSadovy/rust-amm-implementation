@@ -51,6 +51,8 @@ lazy_static! {
 pub struct SplTokenSwapAmm {
     key: Pubkey,
     label: String,
+    token_a_is_frozen: bool,
+    token_b_is_frozen: bool,
     state: SwapV1,
     reserve_mints: [Pubkey; 2],
     reserves: [u128; 2],
@@ -68,6 +70,8 @@ impl Clone for SplTokenSwapAmm {
         SplTokenSwapAmm {
             key: self.key,
             label: self.label.clone(),
+            token_a_is_frozen: self.token_a_is_frozen,
+            token_b_is_frozen: self.token_b_is_frozen,
             state: SwapV1 {
                 is_initialized: self.state.is_initialized,
                 bump_seed: self.state.bump_seed,
@@ -105,6 +109,8 @@ impl Amm for SplTokenSwapAmm {
         Ok(Self {
             key: keyed_account.key,
             label,
+            token_a_is_frozen: false,
+            token_b_is_frozen: false,
             state,
             reserve_mints,
             program_id: keyed_account.account.owner,
@@ -129,24 +135,29 @@ impl Amm for SplTokenSwapAmm {
     }
 
     fn get_accounts_to_update(&self) -> Vec<Pubkey> {
-        vec![self.state.token_a, self.state.token_b]
+        vec![self.key, self.state.token_a, self.state.token_b]
     }
 
     fn update(&mut self, account_map: &AccountMap) -> Result<()> {
         if let Some(token_a_account) = account_map.get(&self.state.token_a) {
             let token_a_token_account = TokenAccount::unpack(token_a_account.data.as_slice())?;
-            self.reserves [0] = token_a_token_account.amount.into()
+            self.reserves [0] = token_a_token_account.amount.into();
+            self.token_a_is_frozen = token_a_token_account .is_frozen();
         }
 
         if let Some(token_b_account) = account_map.get(&self.state.token_b) {
             let token_b_token_account = TokenAccount::unpack(token_b_account.data.as_slice())?;
             self.reserves[1] = token_b_token_account.amount.into();
+            self.token_b_is_frozen = token_b_token_account.is_frozen();
         }
 
         Ok(())
     }
 
     fn quote(&self, quote_params: &QuoteParams) -> Result<Quote> {
+        if self.token_a_is_frozen || self.token_b_is_frozen {
+            return Err(anyhow::anyhow!("Token is frozen"));
+        }
         let (trade_direction, swap_source_amount, swap_destination_amount) =
             if quote_params.input_mint == self.reserve_mints[0] {
                 (TradeDirection::AtoB, self.reserves[0], self.reserves[1])
@@ -214,5 +225,9 @@ impl Amm for SplTokenSwapAmm {
 
     fn get_available_liquidity(&self) -> Vec<u128> {
         self.reserves.to_vec()
+    }
+
+    fn is_active(&self) -> bool {
+        !self.token_a_is_frozen && !self.token_b_is_frozen
     }
 }
