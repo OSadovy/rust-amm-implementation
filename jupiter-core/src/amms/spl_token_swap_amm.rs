@@ -138,20 +138,27 @@ impl Amm for SplTokenSwapAmm {
         vec![self.key, self.state.token_a, self.state.token_b]
     }
 
-    fn update(&mut self, account_map: &AccountMap) -> Result<()> {
+    fn update(&mut self, account_map: &AccountMap) -> Result<bool> {
+        let mut prices_changed = false;
         if let Some(token_a_account) = account_map.get(&self.state.token_a) {
             let token_a_token_account = TokenAccount::unpack(token_a_account.data.as_slice())?;
-            self.reserves [0] = token_a_token_account.amount.into();
+            let token_a_amount = token_a_token_account.amount.into();
+            prices_changed  |= self.reserves [0] != token_a_amount ;
+            self.reserves [0] = token_a_amount;
+            prices_changed  |=  self.token_a_is_frozen != token_a_token_account.is_frozen();
             self.token_a_is_frozen = token_a_token_account .is_frozen();
         }
 
         if let Some(token_b_account) = account_map.get(&self.state.token_b) {
             let token_b_token_account = TokenAccount::unpack(token_b_account.data.as_slice())?;
-            self.reserves[1] = token_b_token_account.amount.into();
+            let token_b_amount = token_b_token_account.amount.into();
+            prices_changed  |= self.reserves [1] != token_b_amount ;
+            self.reserves[1] = token_b_amount;
+            prices_changed  |= self.token_b_is_frozen != token_b_token_account.is_frozen();
             self.token_b_is_frozen = token_b_token_account.is_frozen();
         }
 
-        Ok(())
+        Ok(prices_changed)
     }
 
     fn quote(&self, quote_params: &QuoteParams) -> Result<Quote> {
