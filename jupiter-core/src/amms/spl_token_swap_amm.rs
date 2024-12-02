@@ -47,6 +47,18 @@ lazy_static! {
     };
 }
 
+lazy_static! {
+    pub static ref SPL_TOKEN_SWAP_PROGRAM_CU_CONSUMPTION: HashMap<Pubkey, u32> = {
+        let mut m = HashMap::new();
+        m.insert(spl_token_swap_programs::ORCA_V1, 31700);
+        m.insert(spl_token_swap_programs::ORCA_V2, 58300);
+        m.insert(spl_token_swap_programs::STEPN, 58500);
+        m.insert(spl_token_swap_programs::SAROS, 58000);
+        m.insert(spl_token_swap_programs::PENGUIN, 63200);
+        m
+    };
+}
+
 #[derive(Debug)]
 pub struct SplTokenSwapAmm {
     key: Pubkey,
@@ -57,6 +69,7 @@ pub struct SplTokenSwapAmm {
     reserve_mints: [Pubkey; 2],
     reserves: [u128; 2],
     program_id: Pubkey,
+    approx_cu_consumption: u32,
 }
 
 impl SplTokenSwapAmm {
@@ -91,6 +104,7 @@ impl Clone for SplTokenSwapAmm {
             reserve_mints: self.reserve_mints,
             program_id: self.program_id,
             reserves: self.reserves,
+            approx_cu_consumption: self.approx_cu_consumption,
         }
     }
 }
@@ -106,6 +120,9 @@ impl Amm for SplTokenSwapAmm {
             .unwrap()
             .clone();
 
+        let approx_cu_consumption = *SPL_TOKEN_SWAP_PROGRAM_CU_CONSUMPTION
+            .get(&keyed_account.account.owner)
+            .unwrap();
         Ok(Self {
             key: keyed_account.key,
             label,
@@ -115,6 +132,7 @@ impl Amm for SplTokenSwapAmm {
             reserve_mints,
             program_id: keyed_account.account.owner,
             reserves: Default::default(),
+            approx_cu_consumption,
         })
     }
 
@@ -188,6 +206,7 @@ impl Amm for SplTokenSwapAmm {
             out_amount: swap_result.expected_output_amount.try_into()?,
             fee_amount: swap_result.fees.try_into()?,
             fee_mint: quote_params.input_mint,
+            approx_swap_cu_consumed: self.approx_cu_consumption,
             ..Quote::default()
         })
     }
